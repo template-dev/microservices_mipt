@@ -1,49 +1,60 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 import os
+from sqlalchemy.ext.asyncio import AsyncSession
 from . import models, schemas
 from .file_utils import save_upload_file, delete_upload_file
 from typing import Optional, List
 from database.db import AsyncSessionLocal
-from sqlalchemy.orm import Session
 from sqlalchemy.future import select
 from sqlalchemy import delete as sqlalchemy_delete
 
-
 router = APIRouter(prefix="/products", tags=["Products"])
 
+async def get_db() -> AsyncSession:
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
 
-async def get_db():
-    db = await AsyncSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-@router.post("/", response_model=schemas.Product)
+@router.post("/", response_model=schemas.Product, status_code=201)
 async def create_product(
     name: str = Form(...),
     description: Optional[str] = Form(None),
     price: float = Form(...),
     image: Optional[UploadFile] = File(None),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    product_data = {
-        "name": name,
-        "description": description,
-        "price": price
-    }
-    db_product = models.Product(**product_data)
+    db_product = models.Product(
+        name=name,
+        description=description,
+        price=price,
+        image_path=image.filename if image else None
+    )
+    
     db.add(db_product)
-    db.commit()
-    db.refresh(db_product)
+    await db.commit()
+    await db.refresh(db_product)
+    
+    if db_product.id is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create product - ID not generated"
+        )
     
     if image:
-        image_path = await save_upload_file(image, db_product.id)
-        if image_path:
+        try:
+            image_path = await save_upload_file(image, db_product.id)
             db_product.image_path = image_path
-            db.commit()
-            db.refresh(db_product)
+            await db.commit()
+            await db.refresh(db_product)
+        except Exception as e:
+            await db.delete(db_product)
+            await db.commit()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to save image: {str(e)}"
+            )
     
     product_response = schemas.Product.from_orm(db_product)
     if db_product.image_path:
@@ -51,9 +62,8 @@ async def create_product(
     
     return product_response
 
-
-@router.get("/", response_model=list[schemas.Product])
-async def get_all_products(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+@router.get("/", response_model=List[schemas.Product])
+async def get_all_products(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(models.Product).offset(skip).limit(limit))
     products = result.scalars().all()
     
@@ -62,9 +72,8 @@ async def get_all_products(skip: int = 0, limit: int = 100, db: Session = Depend
             product.image_url = f"/static/products/{os.path.basename(product.image_path)}"
     return products
 
-
 @router.get("/{product_id}", response_model=schemas.Product)
-async def get_product(product_id: int, db: Session = Depends(get_db)):
+async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(models.Product).where(models.Product.id == product_id))
     product = result.scalar_one_or_none()
     
@@ -79,7 +88,6 @@ async def get_product(product_id: int, db: Session = Depends(get_db)):
     
     return product
 
-
 @router.put("/{product_id}", response_model=schemas.Product)
 async def update_product(
     product_id: int,
@@ -87,7 +95,7 @@ async def update_product(
     description: Optional[str] = Form(None),
     price: Optional[float] = Form(None),
     image: Optional[UploadFile] = File(None),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(select(models.Product).where(models.Product.id == product_id))
     db_product = result.scalar_one_or_none()
@@ -122,9 +130,8 @@ async def update_product(
     
     return product_response
 
-
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_product(product_id: int, db: Session = Depends(get_db)):
+async def delete_product(product_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(models.Product).where(models.Product.id == product_id))
     db_product = result.scalar_one_or_none()
     
@@ -142,9 +149,8 @@ async def delete_product(product_id: int, db: Session = Depends(get_db)):
     
     return None
 
-
 @router.delete("/", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_all_products(db: Session = Depends(get_db)):
+async def delete_all_products(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(models.Product))
     products = result.scalars().all()
     
