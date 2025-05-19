@@ -1,11 +1,13 @@
 from fastapi import FastAPI
-from products.routers import router as product_router
+from products.routers import router as products_router
+from orders.routers import router as orders_router
 from database.db import engine, Base
 import asyncio
 
 app = FastAPI()
 
-app.include_router(product_router)
+app.include_router(products_router)
+app.include_router(orders_router)
 
 async def create_tables():
     async with engine.begin() as conn:
@@ -14,8 +16,4 @@ async def create_tables():
 @app.on_event("startup")
 async def startup_event():
     await create_tables()
-    print("Таблицы успешно созданы")
-
-@app.get("/")
-async def root():
-    return {"message": "Welcome to the Shop API"}
+    print("Tables have been created successfully")

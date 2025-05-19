@@ -130,7 +130,7 @@ async def update_product(
     
     return product_response
 
-@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{product_id}", status_code=status.HTTP_200_OK)
 async def delete_product(product_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(models.Product).where(models.Product.id == product_id))
     db_product = result.scalar_one_or_none()
@@ -149,7 +149,7 @@ async def delete_product(product_id: int, db: AsyncSession = Depends(get_db)):
     
     return None
 
-@router.delete("/", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/", status_code=status.HTTP_200_OK)
 async def delete_all_products(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(models.Product))
     products = result.scalars().all()
