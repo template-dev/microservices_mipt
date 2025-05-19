@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from products.routers import router as products_router
-from orders.routers import router as orders_router
-from database.db import engine, Base
+from app.products.routers import router as products_router
+from app.orders.routers import router as orders_router
+from app.database.db import engine, Base
 import asyncio
 
 app = FastAPI()

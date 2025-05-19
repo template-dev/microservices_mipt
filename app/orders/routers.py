@@ -5,10 +5,9 @@ from sqlalchemy import delete, update
 from typing import List
 from datetime import datetime
 
-from database.db import AsyncSessionLocal
-from orders.models import Order
-from orders.schemas import OrderCreate, OrderResponse, OrderStatus, OrderItem
-from .models import OrderStatus as DBOrderStatus
+from app.database.db import AsyncSessionLocal
+from .schemas import OrderCreate, OrderResponse, OrderStatus
+from .models import Order, OrderStatus as DBOrderStatus
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
