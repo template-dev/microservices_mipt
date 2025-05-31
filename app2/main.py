@@ -1,11 +1,11 @@
 from fastapi import FastAPI
-from app.orders.routers import router as orders_router
-from app.database.db import engine, Base
+from app2.products.routers import router as products_router
+from app2.database.db import engine, Base
 import asyncio
 
 app = FastAPI()
 
-app.include_router(orders_router)
+app.include_router(products_router)
 
 async def create_tables():
     async with engine.begin() as conn:
